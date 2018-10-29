@@ -3,6 +3,7 @@ import torch
 import numpy as np
 from skimage import transform
 import torch.nn.functional as F
+import gensim
 
 # caption data path architecture as:
 # -- caption dir
@@ -42,16 +43,36 @@ def read_caption_data(caption_dir, split_file):
     return caption_list
 
 
+def char_table_to_embeddings(model_path, char, alphabet,
+                             sen_size, emb_size, batch_size, device):
+    sentence = [char_table_to_sentence(alphabet=alphabet, char_table=char[idx])
+                for idx in range(0, batch_size)]
+    embeds = torch.zeros([batch_size, sen_size, emb_size],
+                         #dtype=torch.float64,
+                         device=device)
+
+    # Load word embedding model: using word-to-vec
+    #print('Loading the pre-trained word-to-vec model: GoogleNews-vectors-negative300.bin...')
+    assert (os.path.exists(model_path))
+    model = gensim.models.KeyedVectors.load_word2vec_format(model_path, binary=True, limit=500000)
+
+    for idx in range(0, batch_size):
+        embeds[idx] = word2vec(model, sentence[idx],
+                               sen_size=sen_size, emb_size=emb_size)
+    return embeds
+
+
 # decode the char_table, and return the sentence in string format
 def char_table_to_sentence(alphabet, char_table):
+    sentence = None
     has_multiple_sentence = len(char_table.stride()) > 1
     if has_multiple_sentence:
-        for sentence_batched in torch.t(char_table):
-            sentence = [alphabet[idx.numpy()-1] for idx in sentence_batched]    # index start from 1 in char_table
+        for sentence_i in torch.t(char_table):
+            sentence = [alphabet[int(idx.item()-1)] for idx in sentence_i]    # index start from 1 in char_table
     return ''.join(list(map(str, sentence)))
 
 
-def word2vec(sentence, model, sen_size, emb_size):
+def word2vec(model, sentence, sen_size, emb_size):
     words = sentence.rstrip().split(' ')
     words_to_remove = []
 
@@ -60,7 +81,7 @@ def word2vec(sentence, model, sen_size, emb_size):
         words[idx] = cleaned_word
 
         if cleaned_word not in model.vocab.keys():
-            #print(word, 'not in vocabulary')
+            # print(word, 'not in vocabulary')
             words_to_remove.append(cleaned_word)
 
     for word in words_to_remove:
@@ -86,6 +107,7 @@ def Cos_similarity(x, y, dim=1):
         return F.cosine_similarity(x, y, dim=dim)
     else:
         return F.cosine_similarity(x.view(1, -1), y.view(1, -1))
+
 
 class Rescale(object):
     """Rescale the image in a sample to a given size.
@@ -118,6 +140,7 @@ class Rescale(object):
 
         return {'char': sample['char'], 'image': img, 'txt': sample['txt'], 'word': sample['word']}
 
+
 class RandomCrop(object):
     """Crop randomly the image in a sample.
 
@@ -139,14 +162,41 @@ class RandomCrop(object):
 
         h, w = image.shape[:2]
         new_h, new_w = self.output_size
-
         top = np.random.randint(0, h - new_h)
         left = np.random.randint(0, w - new_w)
 
-        image = image[top: top + new_h,
-                left: left + new_w]
+        image = image[top: top + new_h, left: left + new_w]
 
         return {'char': sample['char'], 'image': image, 'txt': sample['txt'], 'word': sample['word']}
+
+
+class CenterCrop(object):
+    """Crop the image in a sample.
+
+        Args:
+            output_size (tuple or int): Desired output size. If int, square crop
+                is made.
+    """
+    def __init__(self, output_size):
+        assert isinstance(output_size, (int, tuple))
+        if isinstance(output_size, int):
+            self.output_size = (output_size, output_size)
+        else:
+            assert len(output_size) == 2
+            self.output_size = output_size
+
+    def __call__(self, sample):
+        image = sample['image']
+
+        h, w = image.shape[:2]
+        new_h, new_w = self.output_size
+        top = int(0.5 * (h - new_h))
+        left = int(0.5 * (w - new_w))
+
+        image = image[top: top + new_h, left: left + new_w]
+
+        return {'char': sample['char'], 'image': image, 'txt': sample['txt'], 'word': sample['word']}
+
 
 class ToTensor(object):
 
@@ -157,8 +207,15 @@ class ToTensor(object):
         # swap color axis because
         # numpy image: H x W x C
         # torch image: C X H X W
+        # print(image.shape)
+        #try:
         image = image.transpose((2, 0, 1))
-        image = torch.as_tensor(torch.from_numpy(image), dtype=torch.float64)
+        # except Exception as e:
+        #     print(image.shape)
+        #     print(e)
+
+        #image = torch.as_tensor(torch.from_numpy(image), dtype=torch.float64)
+        image = torch.from_numpy(image)
         return {'char': sample['char'], 'image': image, 'txt': sample['txt'], 'word': sample['word']}
 
 class Normalize(object):

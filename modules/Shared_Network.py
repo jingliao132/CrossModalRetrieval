@@ -18,7 +18,7 @@ class Teacher_Net(nn.Module):
         return out
 
     def predict(self, x_reprets, y_reprets):
-        batch_size = x_reprets[0]
+        batch_size = x_reprets.shape[0]
         embedding_loss = torch.ones(batch_size, batch_size)
         for i in range(0, batch_size):
             for j in range(0, batch_size):
@@ -68,13 +68,12 @@ class Image_Net():
             self.set_parameter_requires_grad(model_ft, feature_extract)
             num_ftrs = model_ft.classifier[6].in_features
             model_ft.classifier[6] = nn.Linear(num_ftrs, 9216)  # reinitialize the 6th layer
-            input_size = 224
 
         else:
             print("Invalid model name, exiting...")
             exit()
 
-        return model_ft, input_size
+        return model_ft
 
 
 class RankingLossFunc(nn.Module):

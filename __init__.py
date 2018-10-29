@@ -7,7 +7,8 @@ from torch.utils.data import DataLoader
 from modules.DataLoader import CMRDataset
 from modules.Shared_Network import *
 from utils.util import *
-import gensim
+
+from torch.autograd import Variable
 
 # Ignore warnings
 import warnings
@@ -29,12 +30,6 @@ warnings.filterwarnings("ignore")
 
 def train_model(teacher_model, img_model, txt_model, dataloaders,
                 criterion, optimizer, num_epochs=50000):
-    # Load word embedding model: using word-to-vec
-    print('Loading the pre-trained word-to-vec model: GoogleNews-vectors-negative300.bin...')
-
-    word_embeds_model = gensim.models.KeyedVectors.load_word2vec_format('./models/GoogleNews-vectors-negative300.bin',
-                                                                     binary=True)
-
     since = time.time()
 
     val_acc_history = []
@@ -50,27 +45,29 @@ def train_model(teacher_model, img_model, txt_model, dataloaders,
         for phase in ['train', 'val']:
             if phase == 'train':
                 teacher_model.train()  # Set model to training mode
+                img_model.train()
+                txt_model.train()
+                print('Train phase')
             else:
                 teacher_model.eval()  # Set model to evaluate mode
+                img_model.eval()
+                txt_model.eval()
+                print('Val phase')
 
             running_loss = 0.0
             running_corrects = 0
 
             # Iterate over data.
+            num_batch = 0
             for sample_batched in dataloaders[phase]:
-                char, img  = sample_batched['char'], sample_batched['image']
-                # processing sentence
-                sentence = [char_table_to_sentence(alphabet=alphabet, char_table=char[idx])
-                            for idx in range(0, batch_size)]
 
-                embeds = torch.zeros([batch_size, sen_size, emb_size], dtype=torch.float64)
-                for idx in range(0, batch_size):
-                    embeds[idx] = word2vec(sentence[idx], model=word_embeds_model,
-                                           sen_size=sen_size, emb_size=emb_size)
+                num_batch += 1
+                img = sample_batched['image'].float().to(device)
 
-                embeds = embeds.to(device)
-                img = img.to(device)
-                #txt = txt.to(device)
+                #print('[%s] Computing word embeddings...'  % str(num_batch))
+                embeds = char_table_to_embeddings(model_path=embeds_path, char=sample_batched['char'],
+                                                  alphabet=alphabet, sen_size=sen_size, emb_size=emb_size,
+                                                  batch_size=batch_size, device=device)
 
                 # zero the parameter gradients
                 optimizer.zero_grad()
@@ -79,14 +76,12 @@ def train_model(teacher_model, img_model, txt_model, dataloaders,
                 # track history if only in train
                 with torch.set_grad_enabled(phase == 'train'):
                     # Get model outputs and calculate loss
-                    # Special case for inception because in training it has an auxiliary output. In train
-                    #   mode we calculate the loss by summing the final output and the auxiliary output
-                    #   but in testing we only consider the final output.
-                    img_feature = img_model(img)
-                    txt_feature = txt_model(embeds)
+                    #  In train mode we calculate the loss by summing the final output and the auxiliary output
+                    #  but in testing we only consider the final output.
 
-                    img_reprets = teacher_model(img_feature)
-                    txt_reprets = teacher_model(txt_feature)
+                    print('[%s] forwarding image and embeddings...' % str(num_batch))
+                    img_reprets = teacher_model(img_model(img).float()).to(device)
+                    txt_reprets = teacher_model(txt_model(embeds).float()).to(device)
 
                     loss = criterion(img_reprets, txt_reprets)
 
@@ -94,12 +89,16 @@ def train_model(teacher_model, img_model, txt_model, dataloaders,
 
                     # backward + optimize only if in training phase
                     if phase == 'train':
+                        print('[%s] backward and optimize' % str(num_batch))
                         loss.backward()
                         optimizer.step()
 
                 # statistics
                 running_loss += loss.item() * batch_size
-                running_corrects += sum([(i==preds[i])+0 for i in range(0,len(preds))])#torch.sum(preds == labels.data)
+                running_corrects += sum([(i==preds[i]) + 0 for i in range(0, len(preds))])
+
+                # release memory
+                #del img, embeds, img_reprets, txt_reprets
 
             epoch_loss = running_loss / len(dataloaders[phase].dataset)
             epoch_acc = running_corrects.double() / len(dataloaders[phase].dataset)
@@ -123,143 +122,11 @@ def train_model(teacher_model, img_model, txt_model, dataloaders,
     teacher_model.load_state_dict(best_model_wts)
     return teacher_model, val_acc_history
 
-def main():
-    ######################################################################
-    # Initialize the Teacher model for this run
-    # ---------
-    #
-    model = Teacher_Net().double()
-    # Print the model we just instantiated
-    print(model)
-    ######################################################################
-    # Initialize Image Network
-    #
-    image_net = Image_Net()
-    model_f, input_size = image_net.initialize_model(model_name, feature_extract, use_pretrained=True)
-    model_f = model_f.double()
-    # Print the model we just instantiated
-    print(model_f)
-    ######################################################################
-    # Initialize Text Network
-    # ---------
-    #
-    model_t = Text_Net().double()
-    # Print the model we just instantiated
-    print(model_t)
-    # Send the model to GPU
-    model = model.to(device)
-    model_f = model_f.to(device)
-    model_t = model_t.to(device)
-    # Gather the parameters to be optimized/updated in this run. If we are
-    #  finetuning we will be updating all parameters. However, if we are
-    #  doing feature extract method, we will only update the parameters
-    #  that we have just initialized, i.e. the parameters with requires_grad
-    #  is True.
-    params_to_update = model_f.parameters()
-    print("Params to learn:")
-
-    if feature_extract:
-        params_to_update = []
-        for name, param in model_f.named_parameters():
-            if param.requires_grad == True:
-                params_to_update.append(param)
-                print("\t", name)
-    else:
-        for name, param in model_f.named_parameters():
-            if param.requires_grad == True:
-                print("\t", name)
-
-    for name, param in model.named_parameters():
-        if param.requires_grad == True:
-            params_to_update.append(param)
-            print("\t", name)
-
-    for name, param in model_t.named_parameters():
-        if param.requires_grad == True:
-            params_to_update.append(param)
-            print("\t", name)
-
-    ######################################################################
-    # Load Data
-    # ---------
-    #
-    # Data augmentation and normalization for training
-    # Just normalization for validation
-    data_transforms = {
-        'train': transforms.Compose([
-            Rescale(256),
-            RandomCrop(224),
-            ToTensor(),
-            #Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-        ]),
-        'val': transforms.Compose([
-            transforms.Resize(input_size),
-            transforms.CenterCrop(input_size),
-            transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-        ]),
-    }
-
-    print("Initializing Datasets and Dataloaders...")
-
-    # Create training and validation datasets
-    cub_dataset = {x: CMRDataset(root_dir=data_dir, caption_dir='cub_icml',
-                                 image_dir='images', split = 'train_val.txt',
-                                 transform=data_transforms[x]) for x in ['train', 'val']}
-
-    # Create training and validation dataloaders
-    dataloaders_dict = {x: DataLoader(cub_dataset[x], batch_size=batch_size, shuffle=True,
-                                     num_workers=4) for x in ['train', 'val']}
-
-    # test batch loader
-    # for i_batch, sample_batched in enumerate(dataloaders_dict['train']):
-    #     print(i_batch, sample_batched['image'].numpy().shape)
-    #
-    #     if i_batch == 3:
-    #         plt.figure()
-    #         images_batch = sample_batched['image']
-    #         #batch_size = len(images_batch)
-    #         grid = utils.make_grid(images_batch)
-    #         plt.imshow(grid.numpy().transpose((1, 2, 0)))
-    #         plt.axis('off')
-    #         plt.ioff()
-    #         plt.show()
-    #         break
-
-    ######################################################################
-    # Create the Optimizer
-    # --------------------
-    #
-    # Observe that all parameters are being optimized
-    optimizer = optim.Adam(params_to_update, lr=0.0001)
-
-    ######################################################################
-    # Run Training and Validation Step
-    # --------------------------------
-    #
-
-    # Setup the loss fxn
-    criterion = RankingLossFunc(delta=Delta)
-
-    # Train and evaluate
-    model, hist = train_model(teacher_model=model, img_model=model_f, txt_model=model_t,
-                              dataloaders=dataloaders_dict, criterion=criterion,
-                              optimizer=optimizer, num_epochs=num_epochs)
-    #
-    # ohist = []
-    # ohist = [h.cpu().numpy() for h in hist]
-    # plt.title("Validation Accuracy vs. Number of Training Epochs")
-    # plt.xlabel("Training Epochs")
-    # plt.ylabel("Validation Accuracy")
-    # plt.plot(range(1, num_epochs + 1), ohist, label="Teacher-Student Model")
-    # plt.ylim((0, 1.))
-    # plt.xticks(np.arange(1, num_epochs + 1, 1.0))
-    # plt.legend()
-    # plt.show()
 
 # Top level data directory. Here we assume the format of the directory conforms
 #   to the ImageFolder structure
 data_dir = "./datasets/CUB_200_2011"
+embeds_path = "./models/GoogleNews-vectors-negative300.bin"
 
 # Look-up dictionary
 alphabet = "abcdefghijklmnopqrstuvwxyz0123456789-,;.!?:'\"/\\|_@#$%^&*~`+-=<>()[]{} "
@@ -275,18 +142,147 @@ model_name = "alexnet"
 Delta = 0.002
 
 # Batch size for training (change depending on how much memory you have)
-batch_size = 16
+batch_size = 128
 
 # Number of epochs to train for
-num_epochs = 50000
+epoch_num = 50000
 
 # Flag for feature extracting. When False, we finetune the whole model,
 #   when True we only update the reshaped layer params
 feature_extract = True
+input_size = 224
 
 # Detect if we have a GPU available
+gpu = 1 if torch.cuda.is_available() else 0
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
+
 if __name__ == "__main__":
-    print("Entering function main...")
-    main()
+    ######################################################################
+    # Initialize models for this run
+    # ---------
+    model = Teacher_Net()
+    # Initialize Image Network
+    model_f = Image_Net().initialize_model(model_name, feature_extract, use_pretrained=True)
+    # Initialize Text Network
+    model_t = Text_Net()
+
+    # Print the model we just instantiated
+    # print(model)
+    # print(model_f)
+    # print(model_t)
+
+    ######################################################################
+    # Initialize variables
+    # ---------
+    # img = Variable(torch.Tensor((batch_size, 3, input_size, input_size)), requires_grad=True)
+    # embeds = Variable(torch.Tensor((batch_size, 16, 300)), requires_grad=True)
+    # img_reprets = Variable(torch.Tensor((batch_size, 1000)), requires_grad=True)
+    # txt_reprets = Variable(torch.Tensor((batch_size, 1000)), requires_grad=True)
+
+    # Gather the parameters to be optimized/updated in this run. If we are
+    #  finetuning we will be updating all parameters. However, if we are
+    #  doing feature extract method, we will only update the parameters
+    #  that we have just initialized, i.e. the parameters with requires_grad
+    #  is True.
+    print("Params to learn:")
+    params_to_update_share = []
+    params_to_update_img = model_f.parameters()
+    params_to_update_txt = []
+
+    for name, param in model.named_parameters():
+        if param.requires_grad is True:
+            params_to_update_share.append(param)
+            print("\t", name)
+
+    if feature_extract:
+        params_to_update_img = []
+        for name, param in model_f.named_parameters():
+            if param.requires_grad is True:
+                params_to_update_img.append(param)
+                print("\t", name)
+    else:
+        for name, param in model_f.named_parameters():
+            if param.requires_grad is True:
+                print("\t", name)
+
+    for name, param in model_t.named_parameters():
+        if param.requires_grad is True:
+            params_to_update_txt.append(param)
+            print("\t", name)
+
+    # Send model and variables to GPU if use gpu
+    if gpu > 0:
+        print('transferring to gpu...')
+        model = model.to(device)
+        model_f = model_f.to(device)
+        model_t = model_t.to(device)
+        print('done')
+    else:
+        print('running model on CPU')
+
+    ######################################################################
+    # Load Data
+    # ---------
+    #
+    # Data augmentation and normalization for training
+    # Just normalization for validation
+    data_transforms = {
+        'train': transforms.Compose([
+            Rescale(256),
+            RandomCrop(input_size),
+            ToTensor(),
+            # Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        ]),
+        'val': transforms.Compose([
+            Rescale(256),
+            CenterCrop(input_size),
+            ToTensor(),
+            # Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        ]),
+    }
+
+    print("Initializing Datasets and Dataloaders...")
+
+    # Create training and validation datasets
+    cub_dataset = {x: CMRDataset(root_dir=data_dir, caption_dir='cub_icml',
+                                 image_dir='images', split='%s.txt' % x,
+                                 transform=data_transforms[x]) for x in ['train', 'val']}
+
+    # Create training and validation dataloaders
+    dataloaders_dict = {x: DataLoader(cub_dataset[x], batch_size=batch_size, shuffle=True,
+                                      num_workers=0,
+                                      drop_last=True) for x in ['train', 'val']}
+
+    ######################################################################
+    # Create the Optimizer
+    # --------------------
+    #
+    # Observe that all parameters are being optimized
+    params_to_update = params_to_update_share + params_to_update_img + params_to_update_txt
+    optimizer = optim.Adam(params_to_update, lr=0.0001)
+
+    ######################################################################
+    # Run Training and Validation Step
+    # --------------------------------
+    #
+
+    # Setup the loss fxn
+    criterion = RankingLossFunc(delta=Delta)
+    criterion.to(device)
+
+    # Train and evaluate
+    model, hist = train_model(teacher_model=model, img_model=model_f, txt_model=model_t,
+                              dataloaders=dataloaders_dict, criterion=criterion,
+                              optimizer=optimizer, num_epochs=epoch_num)
+    #
+    # ohist = []
+    # ohist = [h.cpu().numpy() for h in hist]
+    # plt.title("Validation Accuracy vs. Number of Training Epochs")
+    # plt.xlabel("Training Epochs")
+    # plt.ylabel("Validation Accuracy")
+    # plt.plot(range(1, num_epochs + 1), ohist, label="Teacher-Student Model")
+    # plt.ylim((0, 1.))
+    # plt.xticks(np.arange(1, num_epochs + 1, 1.0))
+    # plt.legend()
+    # plt.show()
