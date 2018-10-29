@@ -109,6 +109,11 @@ def Cos_similarity(x, y, dim=1):
         return F.cosine_similarity(x.view(1, -1), y.view(1, -1))
 
 
+def caption_path_to_embeds_path(caption_path, dir_path):
+    cls, fn = caption_path.split('/')[-2], caption_path.split('/')[-1]
+    embeds_path = os.path.join(os.path.join(dir_path, cls), fn)
+    return embeds_path
+
 class Rescale(object):
     """Rescale the image in a sample to a given size.
 
@@ -138,7 +143,7 @@ class Rescale(object):
 
         img = transform.resize(image, (new_h, new_w))
 
-        return {'char': sample['char'], 'image': img, 'txt': sample['txt'], 'word': sample['word']}
+        return {'embeds': sample['embeds'], 'image': img, 'txt': sample['txt'], 'word': sample['word']}
 
 
 class RandomCrop(object):
@@ -167,7 +172,7 @@ class RandomCrop(object):
 
         image = image[top: top + new_h, left: left + new_w]
 
-        return {'char': sample['char'], 'image': image, 'txt': sample['txt'], 'word': sample['word']}
+        return {'embeds': sample['embeds'], 'image': image, 'txt': sample['txt'], 'word': sample['word']}
 
 
 class CenterCrop(object):
@@ -195,7 +200,7 @@ class CenterCrop(object):
 
         image = image[top: top + new_h, left: left + new_w]
 
-        return {'char': sample['char'], 'image': image, 'txt': sample['txt'], 'word': sample['word']}
+        return {'embeds': sample['embeds'], 'image': image, 'txt': sample['txt'], 'word': sample['word']}
 
 
 class ToTensor(object):
@@ -216,7 +221,7 @@ class ToTensor(object):
 
         #image = torch.as_tensor(torch.from_numpy(image), dtype=torch.float64)
         image = torch.from_numpy(image)
-        return {'char': sample['char'], 'image': image, 'txt': sample['txt'], 'word': sample['word']}
+        return {'embeds': sample['embeds'], 'image': image, 'txt': sample['txt'], 'word': sample['word']}
 
 class Normalize(object):
 
@@ -233,6 +238,6 @@ class Normalize(object):
         """Normalize a tensor image with mean and standard deviation."""
         image = sample['image']
         image = [(image[c] - self.mean[c]) / self.std[c] for c in range(0, 3)]
-        return {'char': sample['char'], 'image': image, 'txt': sample['txt'], 'word': sample['word']}
+        return {'embeds': sample['embeds'], 'image': image, 'txt': sample['txt'], 'word': sample['word']}
 
 #print(read_caption_data('../datasets/CUB_200_2011/cub_icml'))

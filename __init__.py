@@ -60,14 +60,10 @@ def train_model(teacher_model, img_model, txt_model, dataloaders,
             # Iterate over data.
             num_batch = 0
             for sample_batched in dataloaders[phase]:
-
                 num_batch += 1
-                img = sample_batched['image'].float().to(device)
 
-                #print('[%s] Computing word embeddings...'  % str(num_batch))
-                embeds = char_table_to_embeddings(model_path=embeds_path, char=sample_batched['char'],
-                                                  alphabet=alphabet, sen_size=sen_size, emb_size=emb_size,
-                                                  batch_size=batch_size, device=device)
+                img = sample_batched['image'].float().to(device)
+                embeds = sample_batched['embeds'].float().to(device)
 
                 # zero the parameter gradients
                 optimizer.zero_grad()
@@ -79,9 +75,9 @@ def train_model(teacher_model, img_model, txt_model, dataloaders,
                     #  In train mode we calculate the loss by summing the final output and the auxiliary output
                     #  but in testing we only consider the final output.
 
-                    print('[%s] forwarding image and embeddings...' % str(num_batch))
-                    img_reprets = teacher_model(img_model(img).float()).to(device)
-                    txt_reprets = teacher_model(txt_model(embeds).float()).to(device)
+                    print('%s: [%s] forwarding image and embeddings...' %(str(epoch), str(num_batch)))
+                    img_reprets = teacher_model(img_model(img)).to(device)
+                    txt_reprets = teacher_model(txt_model(embeds)).to(device)
 
                     loss = criterion(img_reprets, txt_reprets)
 
@@ -89,7 +85,7 @@ def train_model(teacher_model, img_model, txt_model, dataloaders,
 
                     # backward + optimize only if in training phase
                     if phase == 'train':
-                        print('[%s] backward and optimize' % str(num_batch))
+                        print('%s: [%s] backward and optimize...' %(str(epoch), str(num_batch)))
                         loss.backward()
                         optimizer.step()
 
@@ -142,7 +138,7 @@ model_name = "alexnet"
 Delta = 0.002
 
 # Batch size for training (change depending on how much memory you have)
-batch_size = 128
+batch_size = 64
 
 # Number of epochs to train for
 epoch_num = 50000
@@ -246,7 +242,8 @@ if __name__ == "__main__":
 
     # Create training and validation datasets
     cub_dataset = {x: CMRDataset(root_dir=data_dir, caption_dir='cub_icml',
-                                 image_dir='images', split='%s.txt' % x,
+                                 image_dir='images', embeds_dir='pretrained_embeddings',
+                                 split='%s.txt' % x,
                                  transform=data_transforms[x]) for x in ['train', 'val']}
 
     # Create training and validation dataloaders
