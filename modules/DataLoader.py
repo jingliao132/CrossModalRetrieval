@@ -14,12 +14,15 @@ class CMRDataset(Dataset):
     def __init__(self, root_dir, caption_dir, image_dir, embeds_dir, split, transform=None):
         assert(os.path.isdir(os.path.join(root_dir, caption_dir)))
         assert(os.path.isfile(os.path.join(root_dir, split)))
+
         self.root_dir = root_dir
+        self.image_dir = image_dir
+        self.transform = transform
+
         self.caption_dir = os.path.join(root_dir, caption_dir)
         self.split_file = os.path.join(root_dir, split)
-        self.image_dir = image_dir
         self.embeds_dir = os.path.join(root_dir, embeds_dir)
-        self.transform = transform
+
         self.caption_list = read_caption_data(self.caption_dir, self.split_file)
 
     def __len__(self):
@@ -27,29 +30,24 @@ class CMRDataset(Dataset):
 
     def __getitem__(self, idx):
         assert(os.path.isfile(self.caption_list[idx]))
+
         caption = load_lua(self.caption_list[idx])
 
-        embeds_path = caption_path_to_embeds_path(self.caption_list[idx], self.embeds_dir)
-        embeds = torch.load(embeds_path)['embeds']
+        embeds = torch.load(caption_path_to_embeds_path(self.caption_list[idx], self.embeds_dir))['embeds']
 
-        img_path = os.path.join(self.root_dir, self.image_dir, caption['img'])
-        image = io.imread(img_path)
+        image = io.imread(os.path.join(self.root_dir, self.image_dir, caption['img']))
 
         # if it is a gray image convert to rgb
         if len(image.shape) < 3:
             image = color.gray2rgb(image)
 
-        txt = caption['txt']
-        word = caption['word']
-        sample = {'embeds': embeds, 'image': image, 'txt': txt, 'word': word}
+        # txt = caption['txt']
+        # word = caption['word']
+        sample = {'embeds': embeds, 'image': image}#, 'txt': txt, 'word': word}
 
         if self.transform:
-            try:
-                sample = self.transform(sample)
-            except Exception as e:
-                print(e)
-                print(self.caption_list[idx])
-        # assert (image.shape[0] == 3, img_path)
+            sample = self.transform(sample)
+
         return sample
 
 # cub_dataset = CMRDataset(root_dir='../datasets/CUB_200_2011', caption_dir='cub_icml', image_dir='images',

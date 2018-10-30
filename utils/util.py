@@ -10,6 +10,8 @@ import gensim
 # ---- caption class dir
 # ------ caption file
 #
+
+
 def read_caption_data(caption_dir, split_file):
     if not os.path.exists(caption_dir):
         print(caption_dir+' not exists!')
@@ -20,9 +22,9 @@ def read_caption_data(caption_dir, split_file):
 
     file = open(split_file, 'r')
     line = file.readline().strip('\n')
+
     while line:
         _, cls = line.split(' ')
-        #print(cls)
         cap_cls_list.append(os.path.join(caption_dir, cls))
         line = file.readline().strip('\n')
 
@@ -32,9 +34,10 @@ def read_caption_data(caption_dir, split_file):
         if not os.path.isdir(cap_cls_dir):
             print(cap_cls_dir + ' not exists')
             continue
+
         for cap in os.listdir(cap_cls_dir):
-            #print(cap)
             caption = os.path.join(cap_cls_dir, cap)
+
             if os.path.isfile(caption):
                 caption_list.append(caption)
             else:
@@ -43,13 +46,11 @@ def read_caption_data(caption_dir, split_file):
     return caption_list
 
 
-def char_table_to_embeddings(model_path, char, alphabet,
-                             sen_size, emb_size, batch_size, device):
+def char_table_to_embeddings(model_path, char, alphabet, sen_size, emb_size, batch_size, device):
     sentence = [char_table_to_sentence(alphabet=alphabet, char_table=char[idx])
                 for idx in range(0, batch_size)]
-    embeds = torch.zeros([batch_size, sen_size, emb_size],
-                         #dtype=torch.float64,
-                         device=device)
+
+    embeds = torch.zeros([batch_size, sen_size, emb_size], device=device)
 
     # Load word embedding model: using word-to-vec
     #print('Loading the pre-trained word-to-vec model: GoogleNews-vectors-negative300.bin...')
@@ -66,9 +67,11 @@ def char_table_to_embeddings(model_path, char, alphabet,
 def char_table_to_sentence(alphabet, char_table):
     sentence = None
     has_multiple_sentence = len(char_table.stride()) > 1
+
     if has_multiple_sentence:
         for sentence_i in torch.t(char_table):
             sentence = [alphabet[int(idx.item()-1)] for idx in sentence_i]    # index start from 1 in char_table
+
     return ''.join(list(map(str, sentence)))
 
 
@@ -103,6 +106,7 @@ def word2vec(model, sentence, sen_size, emb_size):
 
 def Cos_similarity(x, y, dim=1):
     assert(x.shape == y.shape)
+
     if len(x.shape) >= 2:
         return F.cosine_similarity(x, y, dim=dim)
     else:
@@ -143,7 +147,7 @@ class Rescale(object):
 
         img = transform.resize(image, (new_h, new_w))
 
-        return {'embeds': sample['embeds'], 'image': img, 'txt': sample['txt'], 'word': sample['word']}
+        return {'embeds': sample['embeds'], 'image': img}#, 'txt': sample['txt'], 'word': sample['word']}
 
 
 class RandomCrop(object):
@@ -172,7 +176,7 @@ class RandomCrop(object):
 
         image = image[top: top + new_h, left: left + new_w]
 
-        return {'embeds': sample['embeds'], 'image': image, 'txt': sample['txt'], 'word': sample['word']}
+        return {'embeds': sample['embeds'], 'image': image}#, 'txt': sample['txt'], 'word': sample['word']}
 
 
 class CenterCrop(object):
@@ -200,7 +204,7 @@ class CenterCrop(object):
 
         image = image[top: top + new_h, left: left + new_w]
 
-        return {'embeds': sample['embeds'], 'image': image, 'txt': sample['txt'], 'word': sample['word']}
+        return {'embeds': sample['embeds'], 'image': image}#, 'txt': sample['txt'], 'word': sample['word']}
 
 
 class ToTensor(object):
@@ -221,7 +225,7 @@ class ToTensor(object):
 
         #image = torch.as_tensor(torch.from_numpy(image), dtype=torch.float64)
         image = torch.from_numpy(image)
-        return {'embeds': sample['embeds'], 'image': image, 'txt': sample['txt'], 'word': sample['word']}
+        return {'embeds': sample['embeds'], 'image': image}#, 'txt': sample['txt'], 'word': sample['word']}
 
 class Normalize(object):
 
@@ -238,6 +242,6 @@ class Normalize(object):
         """Normalize a tensor image with mean and standard deviation."""
         image = sample['image']
         image = [(image[c] - self.mean[c]) / self.std[c] for c in range(0, 3)]
-        return {'embeds': sample['embeds'], 'image': image, 'txt': sample['txt'], 'word': sample['word']}
+        return {'embeds': sample['embeds'], 'image': image}#, 'txt': sample['txt'], 'word': sample['word']}
 
 #print(read_caption_data('../datasets/CUB_200_2011/cub_icml'))
