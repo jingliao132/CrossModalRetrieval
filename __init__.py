@@ -1,15 +1,14 @@
 import torch.optim as optim
 import copy
 import time
+import gc
 import matplotlib.pyplot as plt
 from torchvision import transforms
 from torch.utils.data import DataLoader
 from modules.DataLoader import CMRDataset
 from modules.Shared_Network import *
 from utils.util import *
-
-from torch.autograd import Variable
-
+import objgraph
 # Ignore warnings
 import warnings
 warnings.filterwarnings("ignore")
@@ -28,6 +27,7 @@ warnings.filterwarnings("ignore")
 # training and validation accuracies are printed.
 #
 
+
 def train_model(teacher_model, img_model, txt_model, dataloaders,
                 criterion, optimizer, num_epochs=50000):
     since = time.time()
@@ -40,6 +40,9 @@ def train_model(teacher_model, img_model, txt_model, dataloaders,
     for epoch in range(num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs - 1))
         print('-' * 10)
+
+        print('after a epoch')
+        objgraph.show_growth()
 
         # Each epoch has a training and validation phase
         for phase in ['train', 'val']:
@@ -60,14 +63,13 @@ def train_model(teacher_model, img_model, txt_model, dataloaders,
             # Iterate over data.
             num_batch = 0
             for sample_batched in dataloaders[phase]:
-
                 num_batch += 1
-                img = sample_batched['image'].float().to(device)
 
-                #print('[%s] Computing word embeddings...'  % str(num_batch))
-                embeds = char_table_to_embeddings(model_path=embeds_path, char=sample_batched['char'],
-                                                  alphabet=alphabet, sen_size=sen_size, emb_size=emb_size,
-                                                  batch_size=batch_size, device=device)
+                img = sample_batched['image'].float().to(device)
+                embeds = sample_batched['embeds'].float().to(device)
+
+                print('initial at  a batch')
+                objgraph.show_growth()
 
                 # zero the parameter gradients
                 optimizer.zero_grad()
@@ -79,9 +81,9 @@ def train_model(teacher_model, img_model, txt_model, dataloaders,
                     #  In train mode we calculate the loss by summing the final output and the auxiliary output
                     #  but in testing we only consider the final output.
 
-                    print('[%s] forwarding image and embeddings...' % str(num_batch))
-                    img_reprets = teacher_model(img_model(img).float()).to(device)
-                    txt_reprets = teacher_model(txt_model(embeds).float()).to(device)
+                    print('%s: [%s] forwarding image and embeddings...' % (str(epoch), str(num_batch)))
+                    img_reprets = teacher_model.forward(img_model.forward(img))
+                    txt_reprets = teacher_model.forward(txt_model.forward(embeds))
 
                     loss = criterion(img_reprets, txt_reprets)
 
@@ -89,16 +91,19 @@ def train_model(teacher_model, img_model, txt_model, dataloaders,
 
                     # backward + optimize only if in training phase
                     if phase == 'train':
-                        print('[%s] backward and optimize' % str(num_batch))
+                        print('%s: [%s] backward and optimize...' % (str(epoch), str(num_batch)))
                         loss.backward()
                         optimizer.step()
 
                 # statistics
                 running_loss += loss.item() * batch_size
-                running_corrects += sum([(i==preds[i]) + 0 for i in range(0, len(preds))])
+                running_corrects += sum([(i == preds[i]) + 0 for i in range(len(preds))])
+
+                print('after a batch')
+                objgraph.show_growth()
 
                 # release memory
-                #del img, embeds, img_reprets, txt_reprets
+                del img, embeds, img_reprets, txt_reprets, preds
 
             epoch_loss = running_loss / len(dataloaders[phase].dataset)
             epoch_acc = running_corrects.double() / len(dataloaders[phase].dataset)
@@ -106,12 +111,14 @@ def train_model(teacher_model, img_model, txt_model, dataloaders,
             print('{} Loss: {:.4f} Acc: {:.4f}'.format(phase, epoch_loss, epoch_acc))
 
             # deep copy the model
-            if phase == 'val' and epoch_acc > best_acc:
-                best_acc = epoch_acc
-                best_model_wts = copy.deepcopy(teacher_model.state_dict())
-            if phase == 'val':
-                val_acc_history.append(epoch_acc)
+            if epoch % 100 == 0:
+                if phase == 'val' and epoch_acc > best_acc:
+                    best_acc = epoch_acc
+                    best_model_wts = copy.deepcopy(teacher_model.state_dict())
+                if phase == 'val':
+                    val_acc_history.append(epoch_acc)
 
+        gc.collect()
         print()
 
     time_elapsed = time.time() - since
@@ -126,7 +133,6 @@ def train_model(teacher_model, img_model, txt_model, dataloaders,
 # Top level data directory. Here we assume the format of the directory conforms
 #   to the ImageFolder structure
 data_dir = "./datasets/CUB_200_2011"
-embeds_path = "./models/GoogleNews-vectors-negative300.bin"
 
 # Look-up dictionary
 alphabet = "abcdefghijklmnopqrstuvwxyz0123456789-,;.!?:'\"/\\|_@#$%^&*~`+-=<>()[]{} "
@@ -142,7 +148,7 @@ model_name = "alexnet"
 Delta = 0.002
 
 # Batch size for training (change depending on how much memory you have)
-batch_size = 128
+batch_size = 64
 
 # Number of epochs to train for
 epoch_num = 50000
@@ -171,6 +177,16 @@ if __name__ == "__main__":
     # print(model)
     # print(model_f)
     # print(model_t)
+
+    # Send model and variables to GPU if use gpu
+    if gpu > 0:
+        print('transferring to gpu...')
+        model.to(device)
+        model_f.to(device)
+        model_t.to(device)
+        print('done')
+    else:
+        print('running model on CPU')
 
     ######################################################################
     # Initialize variables
@@ -211,16 +227,6 @@ if __name__ == "__main__":
             params_to_update_txt.append(param)
             print("\t", name)
 
-    # Send model and variables to GPU if use gpu
-    if gpu > 0:
-        print('transferring to gpu...')
-        model = model.to(device)
-        model_f = model_f.to(device)
-        model_t = model_t.to(device)
-        print('done')
-    else:
-        print('running model on CPU')
-
     ######################################################################
     # Load Data
     # ---------
@@ -246,7 +252,8 @@ if __name__ == "__main__":
 
     # Create training and validation datasets
     cub_dataset = {x: CMRDataset(root_dir=data_dir, caption_dir='cub_icml',
-                                 image_dir='images', split='%s.txt' % x,
+                                 image_dir='images', embeds_dir='pretrained_embeddings',
+                                 split='%s.txt' % x,
                                  transform=data_transforms[x]) for x in ['train', 'val']}
 
     # Create training and validation dataloaders
@@ -259,7 +266,7 @@ if __name__ == "__main__":
     # --------------------
     #
     # Observe that all parameters are being optimized
-    params_to_update = params_to_update_share + params_to_update_img + params_to_update_txt
+    params_to_update = params_to_update_share+params_to_update_img+params_to_update_txt
     optimizer = optim.Adam(params_to_update, lr=0.0001)
 
     ######################################################################
@@ -268,21 +275,22 @@ if __name__ == "__main__":
     #
 
     # Setup the loss fxn
-    criterion = RankingLossFunc(delta=Delta)
-    criterion.to(device)
+    criterion = RankingLossFunc(delta=Delta).to(device)
 
     # Train and evaluate
     model, hist = train_model(teacher_model=model, img_model=model_f, txt_model=model_t,
                               dataloaders=dataloaders_dict, criterion=criterion,
                               optimizer=optimizer, num_epochs=epoch_num)
-    #
-    # ohist = []
-    # ohist = [h.cpu().numpy() for h in hist]
-    # plt.title("Validation Accuracy vs. Number of Training Epochs")
-    # plt.xlabel("Training Epochs")
-    # plt.ylabel("Validation Accuracy")
-    # plt.plot(range(1, num_epochs + 1), ohist, label="Teacher-Student Model")
-    # plt.ylim((0, 1.))
-    # plt.xticks(np.arange(1, num_epochs + 1, 1.0))
-    # plt.legend()
-    # plt.show()
+
+    torch.save(model, os.path.join(data_dir, 'bs%s_epoch%s_delta%s.t7'%(batch_size, epoch_num, Delta)))
+
+    ohist = []
+    ohist = [h.cpu().numpy() for h in hist]
+    plt.title("Validation Accuracy vs. Number of Training Epochs")
+    plt.xlabel("Training Epochs")
+    plt.ylabel("Validation Accuracy")
+    plt.plot(range(1, epoch_num + 1), ohist, label="Teacher-Student Model")
+    plt.ylim((0, 1.))
+    plt.xticks(np.arange(1, epoch_num + 1, 1.0))
+    plt.legend()
+    plt.show()

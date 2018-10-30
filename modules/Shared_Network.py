@@ -4,7 +4,9 @@ import torch.nn.functional as F
 from torchvision import models
 from utils.util import Cos_similarity
 
+
 class Teacher_Net(nn.Module):
+
     def __init__(self):
         super(Teacher_Net, self).__init__()
         self.linear1 = nn.Linear(in_features=9216, out_features=4096)
@@ -26,7 +28,6 @@ class Teacher_Net(nn.Module):
 
         preds = torch.argmin(embedding_loss, dim=1)  # return the index of minimal of each row
         return preds
-
 
 
 class Text_Net(nn.Module):
@@ -60,7 +61,6 @@ class Image_Net():
         # Initialize these variables which will be set in this if statement. Each of these
         #   variables is model specific.
         model_ft = None
-        input_size = 0
         if model_name == "alexnet":
             """ Alexnet
             """
@@ -85,10 +85,11 @@ class RankingLossFunc(nn.Module):
         assert (X.shape[0] == Y.shape[0])
         loss = 0
         num_of_samples = X.shape[0]
+        
         mask = torch.eye(num_of_samples)
         for idx in range(0, num_of_samples):
             negative_sample_ids = [j for j in range(0, num_of_samples) if mask[idx][j] < 1]
             loss += sum([max(0, self.delta
-                     - Cos_similarity(X[idx], Y[idx])
-                     + Cos_similarity(X[idx], Y[j])) for j in negative_sample_ids])
+                             - Cos_similarity(X[idx], Y[idx])
+                             + Cos_similarity(X[idx], Y[j])) for j in negative_sample_ids])
         return loss
