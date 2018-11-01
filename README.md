@@ -26,12 +26,25 @@ cd CrossModalRetrieval
 ```bash
 ./datasets/download_dataset.sh CUB_200_2011
 ```
-will download the CUB-200 in datasets folder
+will download and unzip the CUB-200 data in folder 'CUB_200_2011' under ./datasets
 
 ### Download [CUB-200 caption data](https://drive.google.com/file/d/0B0ywwgffWnLLLUc2WHYzM0Q2eWc/view?usp=sharing)(torch format)
-Each caption file contains a dict object with keys 'char', a character-level one-hot mapping of 10 text descriptions on the image; 'img', the file name of the image; 'word', word-level coding of 10 text descriptions and 'txt', 1024-dimentional text feature by pretrained GoogLeNet (Details in https://github.com/reedscot/icml2016). We use only 'char' and 'img'.
+Each caption file contains a dict object with keys:
+
+'char', a character-level one-hot mapping of 10 text descriptions on the image; 
+
+'img', the file name of the image; 
+
+'word', word-level coding of 10 text descriptions 
+
+and 'txt', 1024-dimentional text feature by pretrained GoogLeNet (Details in https://github.com/reedscot/icml2016). We use only 'char' and 'img'.
 
 <img src="./image/caption_data_example.jpg" width="900px" />
+
+### Set up training and validation manifest file
+Example files train.txt val.txt train_val.txt (for producing word embeddings files) are provided in ./datasets. Move them into folder 'CUB_200_2011'.
+
+Customize your train/val by editing train.txt & val.txt
 
 ### New folder 'models' , and Download [pre-trained word-to-vector model](https://drive.google.com/file/d/0B7XkCwpI5KDYNlNUTTlSS21pQmM/edit) (binary format) to 'models'
 
@@ -44,8 +57,6 @@ python3 ./utils/word_embeddings.py
 ```bash
 python3 __init__.py
 ```
-### Customize train/val/test data
-edit train.txt, val.txt, test.txt 
 
 ## Acknowledgement
 @techreport{WelinderEtal2010,
