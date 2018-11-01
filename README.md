@@ -55,6 +55,7 @@ edit train.txt, val.txt, test.txt
 	Title = {{Caltech-UCSD Birds 200}},
 	Year = {2010}
 }
+
 @inproceedings{reed2016generative,
   title={Generative Adversarial Text-to-Image Synthesis},
   author={Scott Reed and Zeynep Akata and Xinchen Yan and Lajanugen Logeswaran and Bernt Schiele and Honglak Lee},
