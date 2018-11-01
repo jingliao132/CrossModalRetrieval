@@ -5,10 +5,11 @@ In this paper, a Teacher-Student model-like network is designed to learn a deep 
 
 <img src="./image/LearningDeepRepresentations.jpg" width="900px" />
 
-Experiment results show that this representation is useful for several tasks, such as cross-modal re- trieval or transferring classifiers between modalities. 
+Experiment results show that this representation is useful for several tasks, such as cross-modal retrieval or transferring classifiers between modalities. 
 
 ## Prerequisites
 - Linux or OSX
+- python 3
 - [Pytorch installation](https://pytorch.org/get-started/locally/) 
 - 8G+ free memory 
 - GPU with CUDA is recommended
