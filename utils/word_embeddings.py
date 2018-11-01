@@ -41,24 +41,24 @@ class Word_Embeddings():
         return file_path, fn, embeds
 
 
-# alphabet = "abcdefghijklmnopqrstuvwxyz0123456789-,;.!?:'\"/\\|_@#$%^&*~`+-=<>()[]{} "
-#
-# data_dir = '../datasets/CUB_200_2011/'
-#
-# split_file = os.path.join(data_dir, 'train_val.txt')
-#
-# caption_dir = os.path.join(data_dir, 'cub_icml')
-#
-# caption_list = read_caption_data(caption_dir, split_file)
-#
-# WE = Word_Embeddings(data_dir, caption_dir, split_file, alphabet)
-#
-# for idx, cap in enumerate(caption_list):
-#     filepath, fn, embeds = WE.load_caption(cap)
-#     if save_embeddings(filepath, fn, embeds):
-#         print(filepath, fn, 'saved')
-#
-#
+alphabet = "abcdefghijklmnopqrstuvwxyz0123456789-,;.!?:'\"/\\|_@#$%^&*~`+-=<>()[]{} "
+
+data_dir = '../datasets/CUB_200_2011/'
+
+split_file = os.path.join(data_dir, 'train_val.txt')
+
+caption_dir = os.path.join(data_dir, 'cub_icml')
+
+caption_list = read_caption_data(caption_dir, split_file)
+
+WE = Word_Embeddings(data_dir, caption_dir, split_file, alphabet)
+
+for idx, cap in enumerate(caption_list):
+    filepath, fn, embeds = WE.load_caption(cap)
+    if save_embeddings(filepath, fn, embeds):
+        print(filepath, fn, 'saved')
+
+
 # # check load
 # data = torch.load(os.path.join(WE.dir_path, '007.Parakeet_Auklet/Parakeet_Auklet_0064_795954.t7'))
 # print(data['embeds'])

@@ -20,17 +20,25 @@ run command in terminal
 git clone https://github.com/jingliao132/CrossModalRetrieval.git
 cd CrossModalRetrieval
 ```
+
 ### Download the [CUB-200 dataset](http://www.vision.caltech.edu/visipedia/CUB-200.html)
 ```bash
 ./datasets/download_dataset.sh CUB_200_2011
 ```
 will download the CUB-200 in datasets folder
+
 ### Download [CUB-200 caption data](https://drive.google.com/file/d/0B0ywwgffWnLLLUc2WHYzM0Q2eWc/view?usp=sharing)(torch format)
 Each caption file contains a dict object with keys 'char', a character-level one-hot mapping of 10 text descriptions on the image; 'img', the file name of the image; 'word', word-level coding of 10 text descriptions and 'txt', 1024-dimentional text feature by pretrained GoogLeNet (Details in https://github.com/reedscot/icml2016). We use only 'char' and 'img'.
 
 <img src="./image/caption_data_example.jpg" width="900px" />
 
-### New folder 'models' , and Download [pretrained word-to-vector model](https://drive.google.com/file/d/0B7XkCwpI5KDYNlNUTTlSS21pQmM/edit) (binary format) to 'models'
+### New folder 'models' , and Download [pre-trained word-to-vector model](https://drive.google.com/file/d/0B7XkCwpI5KDYNlNUTTlSS21pQmM/edit) (binary format) to 'models'
+
+### Produce word embeddings files using the pre-trained model
+```bash
+python3 ./utils/word_embeddings.py
+```
+
 ### Train the model
 ```bash
 python3 __init__.py
