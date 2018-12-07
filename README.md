@@ -28,7 +28,8 @@ cd CrossModalRetrieval
 ```
 will download and unzip the CUB-200 data in folder 'CUB_200_2011' under ./datasets
 
-### Download [CUB-200 caption data](https://drive.google.com/file/d/0B0ywwgffWnLLLUc2WHYzM0Q2eWc/view?usp=sharing)(torch format)
+### Download [CUB-200 caption data](https://drive.google.com/file/d/0B0ywwgffWnLLLUc2WHYzM0Q2eWc/view?usp=sharing)(torch format) with browser or wget (refer to [Download Google Drive files with WGET](https://gist.github.com/iamtekeste/3cdfd0366ebfd2c0d805) and Extract the file under foler 'CUB_200_2011'
+
 Each caption file contains a dict object with keys:
 
 'char', a character-level one-hot mapping of 10 text descriptions on the image; 
@@ -72,4 +73,21 @@ python3 __init__.py
   author={Scott Reed and Zeynep Akata and Xinchen Yan and Lajanugen Logeswaran and Bernt Schiele and Honglak Lee},
   booktitle={Proceedings of The 33rd International Conference on Machine Learning},
   year={2016}
+}
+
+## Reference
+@article{DBLP:journals/corr/AytarVT17,
+  author    = {Yusuf Aytar and
+               Carl Vondrick and
+               Antonio Torralba},
+  title     = {See, Hear, and Read: Deep Aligned Representations},
+  journal   = {CoRR},
+  volume    = {abs/1706.00932},
+  year      = {2017},
+  url       = {http://arxiv.org/abs/1706.00932},
+  archivePrefix = {arXiv},
+  eprint    = {1706.00932},
+  timestamp = {Mon, 13 Aug 2018 16:48:33 +0200},
+  biburl    = {https://dblp.org/rec/bib/journals/corr/AytarVT17},
+  bibsource = {dblp computer science bibliography, https://dblp.org}
 }
